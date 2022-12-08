@@ -97,12 +97,15 @@ Array<BYTE>* __fastcall hkGetRSAKey()
 	if (isPrivate)
 	{
 		Utils::ConsolePrint("private\n");
-		customKey = ReadFile("PrivateKey.txt");
+		//customKey = ReadFile("PrivateKey.txt");
+		customKey = "<RSAKeyValue><Modulus>yaxqjPJP5+Innfv5IdfQqY/ftS++lnDRe3EczNkIjESWXhHSOljEw9b9C+/BtF+fO9QZL7Z742y06eIdvsMPQKdGflB26+9OZ8AF4SpXDn3aVWGr8+9qpB7BELRZI/Ph2FlFL4cobCzMHunncW8zTfMId48+fgHkAzCjRl5rC6XT0Yge6+eKpXmF+hr0vGYWiTzqPzTABl44WZo3rw0yurZTzkrmRE4kR2VzkjY/rBnQAbFKKFUKsUozjCXvSag4l461wDkhmmyivpNkK5cAxuDbsmC39iqagMt9438fajLVvYOvpVs9ci5tiLcbBtfB4Rf/QVAkqtTm86Z0O3e7Dw==</Modulus><Exponent>AQAB</Exponent><P>/auFx84D7UlrfuFQcp5t+n2sex7Hj6kbK3cp27tZ2o6fix7GbJoG6IdBxRyE8NWVr+u5BnbT7wseDMEOjSbyxjuCl/vXlRX01JUhEPTC7bpIpGSU4XMngcE7BT2EEYtKdFQnPK9WW3k7sT2EC/rVIKu9YERyjDZico1AvC+MxUk=</P><Q>y4ahJvcD+6Wq2nbOnFUByVh79tIi1llM5RY/pVviE6IfEgnSfUf1qnqCs5iQn9ifiCDJjMqb+egXXBc/tGP/E5qGe8yTOEZ2Y5pu8T0sfkfBBNbEEFZORnOAFti1uD4nkxNwqolrJyFJGMmP7Ff533Su2VK79zbtyGVJEoAddZc=</Q><DP>FTcIHDq9l1XBmL3tRXi8h+uExlM/q2MgM5VmucrEbAPrke4D+Ec1drMBLCQDdkTWnPzg34qGlQJgA/8NYX61ZSDK/j0AvaY1cKX8OvfNaaZftuf2j5ha4H4xmnGXnwQAORRkp62eUk4kUOFtLrdOpcnXL7rpvZI6z4vCszpi0ok=</DP><DQ>p3lZEl8g/+oK9UneKfYpSi1tlGTGFevVwozUQpWhKta1CnraogycsnOtKWvZVi9C1xljwF7YioPY9QaMfTvroY3+K9DjM+OHd96UfB4Chsc0pW60V10te/t+403f+oPqvLO6ehop+kEBjUwPCkQ6cQ3q8xmJYpvofoYZ4wdZNnE=</DQ><InverseQ>cBvFa7+2fpF/WbodRb3EaGOe22C1NHFlvdkgNzb4vKWTiBGix60Mmab72iyInEdZvfirDgJoou67tMy+yrKxlvuZooELGg4uIM2oSkKWnf0ezCyovy+d62JqNGmSgESx1vNhm6JkNM8XUaKPb2qnxjaV5Mcsrd5Nxhg7p5q7JGM=</InverseQ><D>spmttur01t+SxDec11rgIPoYXMZOm76H1jFDFyrxhf9Lxz0zF5b7kpA3gzWuLwYr53kbYQTTzIG96g7k1sa6IEDDjiPGXYWNwxXsXw73EA9mpwybkqkpoPTXd+qvssZN8SKFweSJaNt3Xb05yVx4bATaL7+80Sztd+HABxag6Cs7eRBB63tLJFHJ+h4xznpOnOd476Sq+S0q64sMeYDLmP+2UiFA6PVhmO9Km0BRmOmzpV/cfLjY3BRfu0s7RFUPr4Sf/uxL8Kmia8rMHqNJfdUyjPVmjLsKLnCnnHlVrspxMOhhk8PFEy7ZbXpCxnum0vGMWPH1cJypE0cCWMACUQ==</D></RSAKeyValue>";
 	}
 	else
 	{
 		Utils::ConsolePrint("public\n");
-		customKey = ReadFile("PublicKey.txt");
+		//customKey = ReadFile("PublicKey.txt");
+		customKey = "<RSAKeyValue><Modulus>xbbx2m1feHyrQ7jP+8mtDF/pyYLrJWKWAdEv3wZrOtjOZzeLGPzsmkcgncgoRhX4dT+1itSMR9j9m0/OwsH2UoF6U32LxCOQWQD1AMgIZjAkJeJvFTrtn8fMQ1701CkbaLTVIjRMlTw8kNXvNA/A9UatoiDmi4TFG6mrxTKZpIcTInvPEpkK2A7Qsp1E4skFK8jmysy7uRhMaYHtPTsBvxP0zn3lhKB3W+HTqpneewXWHjCDfL7Nbby91jbz5EKPZXWLuhXIvR1Cu4tiruorwXJxmXaP1HQZonytECNU/UOzP6GNLdq0eFDE4b04Wjp396551G99YiFP2nqHVJ5OMQ==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
+
 	}
 
 	if (!customKey.empty())
@@ -175,7 +178,10 @@ uintptr_t FindEntry(uintptr_t addr)
 DWORD __stdcall Thread(LPVOID p)
 {
 	Utils::AttachConsole();
-	Utils::ConsolePrint("Waiting for game to startup\n");
+	Utils::ConsolePrint("\n");
+	Utils::ConsolePrint("========== TJGL 正在引导游戏启动, 请勿关闭此窗口 ==========\n");
+	Utils::ConsolePrint("\n");
+	Utils::ConsolePrint("\n");
 
 	auto pid = GetCurrentProcessId();
 	while (true)
