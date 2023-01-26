@@ -16,5 +16,5 @@ A patch to get into private server for a certain anime game
 Try [TJGL](https://zi5.cc/TJGL) 
 
 ## Info
- - It works on version 3.0-3.3 
+ - It works on version 3.0-3.4 
  - The hard-coded keys is the default keys for grasscutter 
