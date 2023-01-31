@@ -108,7 +108,7 @@ Array<BYTE>* __fastcall hkGetRSAKey()
 
 	}
 
-	if (!customKey.empty())
+	if (!customKey.empty() && !isPrivate)
 	{
 		if (customKey.size() <= data->length())
 		{
