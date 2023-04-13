@@ -17,6 +17,7 @@ typedef enum _SECTION_INFORMATION_CLASS {
 } SECTION_INFORMATION_CLASS, * PSECTION_INFORMATION_CLASS;
 EXTERN_C NTSTATUS __stdcall NtQuerySection(HANDLE SectionHandle, SECTION_INFORMATION_CLASS InformationClass, PVOID InformationBuffer, ULONG InformationBufferSize, PULONG ResultLength);
 EXTERN_C NTSTATUS __stdcall NtProtectVirtualMemory(HANDLE ProcessHandle, PVOID* BaseAddress, PULONG  NumberOfBytesToProtect, ULONG NewAccessProtection, PULONG OldAccessProtection);
+EXTERN_C NTSTATUS __stdcall NtPulseEvent(HANDLE EventHandle, PULONG PreviousState);
 
 template <typename T>
 class Array
@@ -42,9 +43,28 @@ public:
 
 };
 
+class String
+{
+public:
+	void* klass;
+	void* monitor;
+	uint32_t length;
+	wchar_t chars[];
+
+	wchar_t* c_str() {
+		return chars;
+	}
+
+	size_t size() {
+		return length;
+	}
+};
+
+
 PVOID oGetPublicKey = nullptr;
 PVOID oGetPrivateKey = nullptr;
-
+PVOID oReadToEnd = nullptr;
+LPCSTR gcpb = "<RSAKeyValue><Modulus>xbbx2m1feHyrQ7jP+8mtDF/pyYLrJWKWAdEv3wZrOtjOZzeLGPzsmkcgncgoRhX4dT+1itSMR9j9m0/OwsH2UoF6U32LxCOQWQD1AMgIZjAkJeJvFTrtn8fMQ1701CkbaLTVIjRMlTw8kNXvNA/A9UatoiDmi4TFG6mrxTKZpIcTInvPEpkK2A7Qsp1E4skFK8jmysy7uRhMaYHtPTsBvxP0zn3lhKB3W+HTqpneewXWHjCDfL7Nbby91jbz5EKPZXWLuhXIvR1Cu4tiruorwXJxmXaP1HQZonytECNU/UOzP6GNLdq0eFDE4b04Wjp396551G99YiFP2nqHVJ5OMQ==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
 
 PVOID Detour(PVOID func, PVOID jmp, bool attach)
 {
@@ -65,7 +85,7 @@ PVOID Detour(PVOID func, PVOID jmp, bool attach)
 
 std::string ReadFile(std::string path)
 {
-	std::ifstream ifs(path);
+	std::ifstream ifs(std::filesystem::current_path() / path);
 	if (!ifs.good())
 	{
 		Utils::ConsolePrint("Failed to Open: %s\n", path.c_str());
@@ -128,12 +148,67 @@ Array<BYTE>* __fastcall hkGetRSAKey()
 	return data;
 }
 
+String* __fastcall hkReadToEnd(void* rcx, void* rdx)
+{
+	auto result = decltype(&hkReadToEnd)(oReadToEnd)(rcx, rdx);
+	if (!result)
+		return result;
+
+	if (!wcsstr(result->c_str(), L"<RSAKeyValue>"))
+		return result;
+
+	bool isPrivate = wcsstr(result->c_str(), L"<InverseQ>");
+	std::string customKey{};
+
+	if (isPrivate)
+	{
+		Utils::ConsolePrint("private\n");
+		customKey = ReadFile("PrivateKey.txt");
+	}
+	else
+	{
+		Utils::ConsolePrint("public\n");
+		customKey = ReadFile("PublicKey.txt");
+		if (customKey.empty())
+		{
+			Utils::ConsolePrint("original:\n");
+			Utils::ConsolePrint("%S\n\n", result->c_str());
+
+			Utils::ConsolePrint("using grasscutter public key\n");
+			customKey = gcpb;
+		}
+	}
+
+	if (!customKey.empty())
+	{
+		if (customKey.size() <= result->size())
+		{
+			ZeroMemory(result->chars, result->size() * 2);
+			std::wstring wstr = std::wstring(customKey.begin(), customKey.end()); // idc
+			memcpy_s(result->chars, result->size() * 2, wstr.data(), wstr.size() * 2);
+		}
+		else
+		{
+			Utils::ConsolePrint("custom key longer than original\n");
+		}
+	}
+
+	for (int i = 0; i < result->size(); i++)
+		Utils::ConsolePrint("%C", result->chars[i]);
+	Utils::ConsolePrint("\n\n");
+
+	return result;
+}
+
 void DisableVMP()
 {
 	// restore hook at NtProtectVirtualMemory
+	auto ntdll = GetModuleHandleA("ntdll.dll");
+	bool linux = GetProcAddress(ntdll, "wine_get_version") != nullptr;
+	void* routine = linux ? (void*)NtPulseEvent : (void*)NtQuerySection;
 	DWORD old;
 	VirtualProtect(NtProtectVirtualMemory, 1, PAGE_EXECUTE_READWRITE, &old);
-	*(uintptr_t*)NtProtectVirtualMemory = *(uintptr_t*)NtQuerySection & ~(0xFFui64 << 32) | (uintptr_t)(*(uint32_t*)((uintptr_t)NtQuerySection + 4) - 1) << 32;
+	*(uintptr_t*)NtProtectVirtualMemory = *(uintptr_t*)routine & ~(0xFFui64 << 32) | (uintptr_t)(*(uint32_t*)((uintptr_t)routine + 4) - 1) << 32;
 	VirtualProtect(NtProtectVirtualMemory, 1, old, &old);
 }
 
@@ -175,6 +250,84 @@ uintptr_t FindEntry(uintptr_t addr)
 	return 0;
 }
 
+void OldVersion() // <= 3.5.0 
+{
+	auto GetPublicKey = Utils::PatternScan("UserAssembly.dll", "48 BA 45 78 70 6F 6E 65 6E 74 48 89 90 ? ? ? ? 48 BA 3E 3C 2F 52 53 41 4B 65"); // 'Exponent></RSAKe'
+	auto GetPrivateKey = Utils::PatternScan("UserAssembly.dll", "2F 49 6E 76 65 72 73 65"); // '/Inverse'
+
+	GetPublicKey = FindEntry(GetPublicKey);
+	GetPrivateKey = FindEntry(GetPrivateKey);
+
+	Utils::ConsolePrint("GetPublicKey: %p\n", GetPublicKey);
+	Utils::ConsolePrint("GetPrivateKey: %p\n", GetPrivateKey);
+
+	// check for null and alignment
+	if (!GetPublicKey || GetPublicKey % 16 > 0)
+		Utils::ConsolePrint("Failed to find GetPublicKey - Need to update\n");
+	if (!GetPrivateKey || GetPrivateKey % 16 > 0)
+		Utils::ConsolePrint("Failed to find GetPrivateKey - Need to update\n");
+
+	oGetPublicKey = Detour((PVOID)GetPublicKey, hkGetRSAKey, true);
+	oGetPrivateKey = Detour((PVOID)GetPrivateKey, hkGetRSAKey, true);
+
+	Utils::ConsolePrint("Hooked GetPublicKey - Original at: %p\n", oGetPublicKey);
+	Utils::ConsolePrint("Hooked GetPrivateKey - Original at: %p\n", oGetPrivateKey);
+}
+
+void ACheckForThoseWhoCannotFollowInstructions(LPVOID instance)
+{
+	if (!instance)
+	{
+		// this shouldn't happen
+		return;
+	}
+
+	char szModulePath[MAX_PATH]{};
+	GetModuleFileNameA((HMODULE)instance, szModulePath, MAX_PATH);
+	
+	std::filesystem::path ModulePath = szModulePath;
+	std::string ModuleName = ModulePath.filename().string();
+	std::transform(ModuleName.begin(), ModuleName.end(), ModuleName.begin(), ::tolower);
+
+	if (ModuleName == "version.dll")
+	{
+		// check mhypbase.dll
+		auto mhypbase = GetModuleHandleA("mhypbase.dll");
+		if (!mhypbase)
+			return;
+
+		PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)mhypbase;
+		PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((uintptr_t)mhypbase + dosHeader->e_lfanew);
+		auto sizeOfImage = ntHeaders->OptionalHeader.SizeOfImage;
+		
+		// over 1MB
+		if (sizeOfImage > 1 * 1024 * 1024) 
+			return;
+
+		// uh oh
+	}
+	else
+	{
+		// check version.dll
+		auto version = GetModuleHandleA("version.dll");
+		if (!version)
+			return; // this shouldn't happen
+
+		ZeroMemory(szModulePath, MAX_PATH);
+		GetModuleFileNameA((HMODULE)version, szModulePath, MAX_PATH);
+		ModuleName = szModulePath;
+		std::transform(ModuleName.begin(), ModuleName.end(), ModuleName.begin(), ::tolower);
+
+		if (ModuleName.find("system32") != std::string::npos)
+			return;
+
+		// uh oh
+	}
+
+	// https://www.youtube.com/watch?v=9a_3wQHcm_Y
+	MessageBoxA(nullptr, "You may have more than one RSAPatch installed.\nPlease only use one RSAPatch to avoid instability.", "RSAPatch", MB_ICONWARNING);
+}
+
 DWORD __stdcall Thread(LPVOID p)
 {
 	Utils::AttachConsole();
@@ -212,26 +365,26 @@ DWORD __stdcall Thread(LPVOID p)
 	}
 
 	DisableVMP(); 
-	auto GetPublicKey = Utils::PatternScan("UserAssembly.dll", "48 BA 45 78 70 6F 6E 65 6E 74 48 89 90 ? ? ? ? 48 BA 3E 3C 2F 52 53 41 4B 65"); // 'Exponent></RSAKe'
-	auto GetPrivateKey = Utils::PatternScan("UserAssembly.dll", "2F 49 6E 76 65 72 73 65"); // '/Inverse'
+	
+	auto UserAssembly = (uintptr_t)GetModuleHandleA("UserAssembly.dll");
+	PIMAGE_DOS_HEADER dos = (PIMAGE_DOS_HEADER)UserAssembly;
+	PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)(UserAssembly + dos->e_lfanew);
+	DWORD timestamp = nt->FileHeader.TimeDateStamp;
 
-	GetPublicKey = FindEntry(GetPublicKey);
-	GetPrivateKey = FindEntry(GetPrivateKey);
+	if (timestamp <= 0x63ECA960)
+	{
+		OldVersion();
+		return 0;
+	}
 
-	Utils::ConsolePrint("GetPublicKey: %p\n", GetPublicKey);
-	Utils::ConsolePrint("GetPrivateKey: %p\n", GetPrivateKey);
+	auto ReadToEnd = Utils::PatternScan("UserAssembly.dll", "48 89 5C 24 ? 48 89 74 24 ? 48 89 7C 24 ? 41 56 48 83 EC 20 48 83 79 ? ? 48 8B D9 75 05");
+	Utils::ConsolePrint("ReadToEnd: %p\n", ReadToEnd);
 
-	// check for null and alignment
-	if (!GetPublicKey || GetPublicKey % 8 > 0)
-		Utils::ConsolePrint("Failed to find GetPublicKey - Need to update\n");
-	if (!GetPrivateKey || GetPrivateKey % 8 > 0)
-		Utils::ConsolePrint("Failed to find GetPrivateKey - Need to update\n");
+	if (!ReadToEnd || ReadToEnd % 16 > 0)
+		Utils::ConsolePrint("Failed to find ReadToEnd - Need to update\n");
 
-	oGetPublicKey = Detour((PVOID)GetPublicKey, hkGetRSAKey, true);
-	oGetPrivateKey = Detour((PVOID)GetPrivateKey, hkGetRSAKey, true);
-
-	Utils::ConsolePrint("Hooked GetPublicKey - Original at: %p\n", oGetPublicKey);
-	Utils::ConsolePrint("Hooked GetPrivateKey - Original at: %p\n", oGetPrivateKey);
+	oReadToEnd = Detour((PVOID)ReadToEnd, hkReadToEnd, true);
+	Utils::ConsolePrint("Hooked ReadToEnd - Original at: %p\n", oReadToEnd);
 
 	return 0;
 }
